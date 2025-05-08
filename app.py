@@ -113,13 +113,8 @@ app.add_middleware(
 )
 
 @app.get("/")
-async def root():
-    """Root endpoint to check if the API is running."""
-    return {
-        "status": "online",
-        "message": "Facial Keypoint Detection API is running",
-        "usage": "POST an image to /predict endpoint to detect facial keypoints"
-    }
+def read_root():
+    return {"message": "CelebA API is running"}
 
 @app.get("/health")
 async def health_check():
