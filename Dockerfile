@@ -20,7 +20,6 @@ COPY . .
 RUN mkdir -p persist && chmod 777 persist
 
 # Set environment variables
-ENV PORT=8000
 ENV HOST=0.0.0.0
 
 # Expose the port that the application will run on
@@ -31,4 +30,4 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:$PORT/ || exit 1
 
 # Command to run the application
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn app:app --host 0.0.0.0 --port ${PORT}"]
