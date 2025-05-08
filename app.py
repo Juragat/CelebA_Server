@@ -163,4 +163,16 @@ async def predict(file: UploadFile = File(...)):
 
 # ---------- Main ----------
 if __name__ == "__main__":
-    uvicorn.run("app:app", host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
+    # Get the PORT from environment variable (important for Railway)
+    port = int(os.getenv("PORT", 8000))
+    print(f"Starting server on port {port}")
+    
+    # Configure Uvicorn with proper settings for production
+    uvicorn.run(
+        "app:app", 
+        host="0.0.0.0", 
+        port=port,
+        proxy_headers=True,  # Important for Railway's proxy setup
+        forwarded_allow_ips="*",  # Allow all forwarded IPs
+        log_level="info"
+    )
