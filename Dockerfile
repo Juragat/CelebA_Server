@@ -6,6 +6,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     build-essential \
     libffi-dev \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
@@ -15,11 +16,19 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Create directory for model persistence
-RUN mkdir -p persist
+# Create directory for model persistence and ensure permissions
+RUN mkdir -p persist && chmod 777 persist
 
-# Expose port
-EXPOSE 8000
+# Set environment variables
+ENV PORT=8000
+ENV HOST=0.0.0.0
+
+# Expose the port that the application will run on
+EXPOSE $PORT
+
+# Healthcheck to ensure the application is responding
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:$PORT/ || exit 1
 
 # Command to run the application
 CMD ["python", "app.py"]
