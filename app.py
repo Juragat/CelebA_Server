@@ -27,22 +27,49 @@ def download_model():
 # ---------- Model architecture ----------
 class KeypointModel(nn.Module):
     def __init__(self):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Conv2d(3, 32, 3), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(32, 64, 3), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Flatten(),
-            nn.Linear(64 * 53 * 53, 100),
+        super(KeypointModel, self).__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(3, 32, 3, padding=1),
             nn.ReLU(),
-            nn.Linear(100, 10)
+            nn.BatchNorm2d(32),
+            nn.MaxPool2d(2, 2),
+
+            nn.Conv2d(32, 64, 3, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(64),
+            nn.MaxPool2d(2, 2),
+
+            nn.Conv2d(64, 128, 3, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(128),
+            nn.MaxPool2d(2, 2),
+
+            nn.Conv2d(128, 256, 3, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(256),
+            nn.MaxPool2d(2, 2)
+        )
+
+        self.regressor = nn.Sequential(
+            nn.Linear(256 * 8 * 8, 1024),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(1024, 512),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(512, 10)
         )
 
     def forward(self, x):
-        return self.net(x)
+        x = self.features(x)
+        x = x.view(x.size(0), -1)
+        x = self.regressor(x)
+        return x
 
 # ---------- Init ----------
 print("Setting device...")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
 
 print("Downloading model if needed...")
 download_model()
@@ -56,41 +83,78 @@ print("Model loaded successfully.")
 
 # ---------- Image transform ----------
 transform = transforms.Compose([
-    transforms.Resize((224, 224)),
+    transforms.Resize((128, 128)),  # Use the same size as in training
     transforms.ToTensor(),
-    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                         std=[0.229, 0.224, 0.225])
 ])
 
 # ---------- FastAPI ----------
 app = FastAPI()
 
+@app.get("/")
+async def root():
+    return {"message": "Facial Keypoint Detection API. POST an image to /predict"}
+
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     try:
         print("Received file:", file.filename)
-        image = Image.open(file.file).convert("RGB")
-        original = image.resize((224, 224))
-        tensor = transform(original).unsqueeze(0).to(device)
-        print("Image transformed.")
-
+        
+        # Read and process image
+        image_data = await file.read()
+        image = Image.open(io.BytesIO(image_data)).convert("RGB")
+        original_size = image.size
+        
+        # Save original for drawing
+        original = image.copy()
+        
+        # Transform for model
+        tensor = transform(image).unsqueeze(0).to(device)
+        print("Image transformed to size:", tensor.shape)
+        
+        # Run inference
         with torch.no_grad():
             print("Running model...")
-            output = model(tensor).view(-1, 2).cpu().tolist()
-
+            output = model(tensor).view(-1, 2)
+            
+            # Scale keypoints back to original image size
+            scale_x = original_size[0] / 128
+            scale_y = original_size[1] / 128
+            
+            # Scale the output keypoints
+            scaled_output = output.clone()
+            scaled_output[:, 0] *= scale_x
+            scaled_output[:, 1] *= scale_y
+            
+            keypoints = scaled_output.cpu().numpy()
+        
         # Draw keypoints on the image
         draw = ImageDraw.Draw(original)
-        for (x, y) in output:
-            r = 3
-            draw.ellipse((x - r, y - r, x + r, y + r), fill='red')
-
+        keypoint_names = ['Left Eye', 'Right Eye', 'Nose', 'Left Mouth', 'Right Mouth']
+        colors = ['red', 'blue', 'green', 'purple', 'orange']
+        
+        for i, (x, y) in enumerate(keypoints):
+            r = max(5, int(min(original_size) * 0.01))  # Dynamic radius based on image size
+            draw.ellipse((x - r, y - r, x + r, y + r), fill=colors[i % len(colors)])
+            
+            # Label keypoints
+            if i < len(keypoint_names):
+                draw.text((x + r + 5, y), keypoint_names[i], fill=colors[i % len(colors)])
+        
         print("Keypoints drawn. Returning image.")
+        
+        # Return the image with keypoints
         buffer = io.BytesIO()
         original.save(buffer, format="PNG")
         buffer.seek(0)
+        
         return StreamingResponse(buffer, media_type="image/png")
-
+    
     except Exception as e:
         print("Error:", str(e))
+        import traceback
+        traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 # ---------- Main ----------
