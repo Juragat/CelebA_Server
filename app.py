@@ -11,7 +11,7 @@ import uvicorn
 import subprocess
 
 # Install required packages
-subprocess.run(["pip", "install", "python-multipart"], check=True)
+# subprocess.run(["pip", "install", "python-multipart"], check=True)
 
 # ---------- Config ----------
 MODEL_PATH = "persist/best_model.pth"
