@@ -97,11 +97,7 @@ transform = transforms.Compose([
 from fastapi.middleware.cors import CORSMiddleware
 
 # Initialize FastAPI app with proper documentation
-app = FastAPI(
-    title="Facial Keypoint Detection API",
-    description="API for detecting facial keypoints in images",
-    version="1.0.0",
-)
+app = FastAPI()
 
 # Add CORS middleware to allow requests from any origin
 app.add_middleware(
@@ -184,16 +180,5 @@ async def predict(file: UploadFile = File(...)):
 
 # ---------- Main ----------
 if __name__ == "__main__":
-    # Get the PORT from environment variable (important for Railway)
-    port = int(os.getenv("PORT", 8000))
-    print(f"Starting server on port {port}")
-    
-    # Configure Uvicorn with proper settings for production
-    uvicorn.run(
-        "app:app", 
-        host="0.0.0.0", 
-        port=port,
-        proxy_headers=True,  # Important for Railway's proxy setup
-        forwarded_allow_ips="*",  # Allow all forwarded IPs
-        log_level="info"
-    )
+    import uvicorn
+    uvicorn.run("app:app", host="0.0.0.0", port=8000)
