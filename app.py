@@ -94,11 +94,37 @@ transform = transforms.Compose([
 ])
 
 # ---------- FastAPI ----------
-app = FastAPI()
+from fastapi.middleware.cors import CORSMiddleware
+
+# Initialize FastAPI app with proper documentation
+app = FastAPI(
+    title="Facial Keypoint Detection API",
+    description="API for detecting facial keypoints in images",
+    version="1.0.0",
+)
+
+# Add CORS middleware to allow requests from any origin
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
+)
 
 @app.get("/")
 async def root():
-    return {"message": "Facial Keypoint Detection API. POST an image to /predict"}
+    """Root endpoint to check if the API is running."""
+    return {
+        "status": "online",
+        "message": "Facial Keypoint Detection API is running",
+        "usage": "POST an image to /predict endpoint to detect facial keypoints"
+    }
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring systems."""
+    return {"status": "healthy", "model_loaded": True}
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
